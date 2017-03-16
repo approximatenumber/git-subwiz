@@ -1,0 +1,10 @@
+# This configuration file contains subtree dependencies for repository.
+
+# It should be looks like:
+# <repository name>;<repository url>;<prefix>
+
+# Be careful! Configuration items must be separated with semicolon (;)!
+
+# Example:
+# cool_module ; ssh://git@cool_company.com:7999/src/cool_module.git ; externals
+

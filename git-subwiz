@@ -1,0 +1,144 @@
+#!/bin/bash
+
+action=$1
+
+dependencies_file="$(pwd)/dependencies.txt"
+
+print_usage () {
+    echo -e "Usage:
+        Importing:
+             $ git subwiz import
+             Imports all subtrees listed in dependencies.txt
+
+        Updating:
+             $ git subwiz update
+             Updates all subtrees listed in dependencies.txt
+
+        Listing:
+            $ git subwiz list
+            Lists all subtrees and its changed time listed in dependencies.txt
+
+        Removing:
+            $ git subwiz remove
+            WARNING! Removes all subtrees from repository listed in dependencies.txt
+            "
+    exit
+}
+
+
+initial_check() {
+    set -e
+    test -f "$dependencies_file" || (echo "Cannot find dependencies.txt in this repository!"; exit 1)
+    test -s "$dependencies_file" || (echo "File dependencies.txt is empty!"; exit 1)
+}
+
+
+import_subtrees() {
+
+    set +e
+    trap "echo SOMETHING GOES WRONG WHILE IMPORTING! SEE ERRORS ABOVE" ERR
+
+    while IFS='' read -r line; do
+
+        ( [ -z "$line" ] || grep -q -e '^#' <<< "$line") && continue
+
+        # Remove both leading and trailing spaces, change spaces inside repo_name and repo_prefix to "_"
+        repo_name=$(echo "$line" | awk -F";" '{print $1}' | sed -e 's/^[[:space:]]*//' -e 's/[[:space:]]*$//' | tr ' ' '_')
+        repo_url=$(echo "$line" | awk -F";" '{print $2}' | sed -e 's/^[[:space:]]*//' -e 's/[[:space:]]*$//')
+        repo_prefix=$(echo "$line" | awk -F";" '{print $3}' | sed -e 's/^[[:space:]]*//' -e 's/[[:space:]]*$//' | tr ' ' '_')
+
+        echo -e "IMPORTING $repo_name FROM $repo_url..."
+        git remote add "$repo_name" "$repo_url"
+        git fetch -q "$repo_name"
+        test -d "$repo_prefix" || mkdir "$repo_prefix"
+        git subtree -q add --prefix="$repo_prefix"/"$repo_name" "$repo_name" develop || \
+                                                                        (echo "COMMIT YOUR CHANGES BEFORE IMPORT SUBTREE!")
+    done < "$dependencies_file"
+}
+
+
+update_subtrees () {
+
+    set +e
+    trap "echo SOMETHING GOES WRONG WHILE UPDATING! SEE ERRORS ABOVE" ERR
+
+    while IFS='' read -r line; do
+
+        ( [ -z "$line" ] || grep -q -e '^#' <<< "$line") && continue
+        
+        # Remove both leading and trailing spaces, change spaces inside repo_name and repo_prefix to "_"
+        repo_name=$(echo "$line" | awk -F";" '{print $1}' | sed -e 's/^[[:space:]]*//' -e 's/[[:space:]]*$//' | tr ' ' '_')
+        repo_prefix=$(echo "$line" | awk -F";" '{print $3}' | sed -e 's/^[[:space:]]*//' -e 's/[[:space:]]*$//' | tr ' ' '_')
+
+        if test -d "$repo_prefix"/"$repo_name"; then    
+            echo -e "UPDATING $repo_name..."
+            ( git subtree pull --prefix="$repo_prefix" "$repo_name" develop &&
+            echo -e "$repo_name SUCCESSFULLY UPDATED!" ) || (echo "CANNOT UPDATE $repo_name!")
+        else
+            echo -e "YOU MUST IMPORT $repo_name BEFORE UPDATING IT!"
+        fi
+    done < "$dependencies_file"
+}
+
+
+list_subtrees () {
+    echo -e "IMPORTED SUBTREES FOUND:"
+    git remote | while IFS='' read -r line; do
+            if [ "$line" == "origin" ]; then continue; fi
+            subtree="$line"
+            last_change=$(git log --grep=git-subtree-dir --date=format:'[%d.%m.%Y %H:%M]' --pretty=format:"%ad%s"| grep "${subtree}"| head -1| grep -o -e '^\[.*\]')
+            echo -e "$subtree (last change: $last_change)"
+    done
+}
+
+
+remove_subtrees () {
+
+    set +e
+    trap "echo SOMETHING GOES WRONG WHILE REMOVING! SEE ERRORS ABOVE" ERR
+
+    while IFS='' read -r line; do
+
+        ( [ -z "$line" ] || grep -q -e '^#' <<< "$line" ) && continue
+
+        # Remove both leading and trailing spaces, change spaces inside repo_name and repo_prefix to "_"
+        repo_name=$(echo "$line" | awk -F";" '{print $1}' | sed -e 's/^[[:space:]]*//' -e 's/[[:space:]]*$//' | tr ' ' '_')
+        repo_prefix=$(echo "$line" | awk -F";" '{print $3}' | sed -e 's/^[[:space:]]*//' -e 's/[[:space:]]*$//' | tr ' ' '_')
+
+        echo -e "DELETING $repo_name FROM CURRENT PROJECT..."
+        git remote remove "$repo_name"
+        ( test -d "$repo_prefix"/"$repo_name" && rm -rf "$repo_prefix"/"$repo_name" )
+        git rm -q -rf "$repo_prefix"/"$repo_name"
+        echo -e "REPOSITORY REMOVED. COMMIT THESE CHANGES."
+
+    done < "$dependencies_file"
+}
+
+
+[ -z "$action" ] && print_usage
+
+case $action in
+
+    import)
+        initial_check
+        import_subtrees
+        ;;
+
+    update)
+        initial_check
+        update_subtrees
+        ;;
+
+    list)
+        list_subtrees
+        ;;
+
+    remove)
+        initial_check
+        remove_subtrees
+        ;;
+
+    *)
+        print_usage
+        ;;
+esac

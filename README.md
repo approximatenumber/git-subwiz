@@ -1,6 +1,6 @@
 ## `git-subwiz`
 
-Tool for easily adding/updating/removing subtrees in your project.
+Tool for easy adding/updating/removing subtrees in your project.
 
 ### Installing
 

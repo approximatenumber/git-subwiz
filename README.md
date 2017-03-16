@@ -19,7 +19,7 @@ For example, `dependencies.txt` with *Sun* and *Moon* configuration:
     sun ;  ssh://git@github:7999/examples/sun.git  ; .externals
     moon ;  ssh://git@github:7999/examples/moon.git ; .externals
 
-When you run `git subwiz import` you can find imported subtrees `.externals/sun` and `.externals/moon`.
+When you run `git subwiz import` you\`ll be able to find imported subtrees `.externals/sun` and `.externals/moon`.
 
 **Be careful to separate configuration items only with semicolon (`;`)!**
 
